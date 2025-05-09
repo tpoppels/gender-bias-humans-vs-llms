@@ -17,7 +17,7 @@ The goal is to demonstrate not only key findings about language and bias, but al
 The project is divided into three parts, each answering a distinct research question and demonstrating different technical tools and methodologies. Interactive dashboards accompany each part to make the results accessible for non-technical audiences.
 
 ::: {.callout-note}
-The behavioral data analyzed in Part 1 of this project was collected in collaboration with my colleagues [Roger Levy](https://www.mit.edu/~rplevy/), [Titus von der Malsburg](https://tmalsburg.github.io), [Veronica Boyce](https://vboyce.github.io), and [Chelsea Ajunwa](https://cos.northeastern.edu/people/chelsea-ajunwa/).
+The behavioral data I analyze in Part 1 of this project is the result of joint work I did during my PhD with my colleagues at MIT: [Roger Levy](https://www.mit.edu/~rplevy/), [Titus von der Malsburg](https://tmalsburg.github.io), [Veronica Boyce](https://vboyce.github.io), and [Chelsea Ajunwa](https://cos.northeastern.edu/people/chelsea-ajunwa/).
 :::
 
 | Part | Focus | Status |
