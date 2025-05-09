@@ -1,0 +1,52 @@
+---
+title: "Data Cleaning and Preprocessing"
+author: "Till Poppels"
+format: 
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 2
+    number-sections: true
+execute:
+  echo: true
+  warning: false
+  message: false
+  error: true
+  cache: false
+editor: visual
+---
+
+```{r setup}
+#| label: setup
+#| include: false
+
+library(tidyverse)
+library(here)
+```
+
+# Overview
+
+The raw data files (gitignored for participant privacy) are Ibex results files and as such don't have a consistent CSV structure (different parts of the results files contain different numbers of columns). We will essentially grep the lines for different types of data and store them in individual data frames that will eventually get glued together into a single dataframe and stored as `data/processed/clean-data.rds`.
+
+We will focus here on the data needed for the main research questions and hypothesis tests:
+
+1. Whether human readers were surprised to see "she" refer to the next Vice President *before the 2020 election*
+2. Whether those expectations were reversed *after the 2020 election*, which saw Kamala Harris become the first female Vice President in US history
+
+## Reading raw data
+
+```{r read-raw-data}
+#| label: read-raw-data
+
+lines_by_pattern <- function(pattern, raw_data_lines) {
+    matching_lines <- raw_data_lines[str_detect(raw_data_lines, pattern)]
+    df <- paste(matching_lines, collapse = "\n") |> read_csv(col_names = FALSE)
+    return(df)
+}
+
+pre_election_lines <- read_lines(file = here("data", "raw", "pre-election-raw-data.txt"))
+post_election_lines <- read_lines(file = here("data", "raw", "post-election-raw-data.txt"))
+
+
+```
+
