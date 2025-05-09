@@ -44,6 +44,15 @@ For a full narrative overview and interactive reports, visit the [project site](
 - **Large model files** (`.rds`) are stored in `/models/` and are gitignored.
 - All reports are generated with [Quarto](https://quarto.org/), rendered to `/docs`, and made available via Github Pages.
 
+### Reproducing the R environment with verified package versions etc.
+
+To restore the R environment:
+
+```r
+install.packages("renv")
+renv::restore()
+```
+
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
