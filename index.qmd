@@ -16,6 +16,10 @@ The goal is to demonstrate not only key findings about language and bias, but al
 
 The project is divided into three parts, each answering a distinct research question and demonstrating different technical tools and methodologies. Interactive dashboards accompany each part to make the results accessible for non-technical audiences.
 
+::: {.callout-note}
+The behavioral data analyzed in Part 1 of this project was collected in collaboration with my colleagues [Roger Levy](https://www.mit.edu/~rplevy/), [Titus von der Malsburg](https://tmalsburg.github.io), [Veronica Boyce](https://vboyce.github.io), and [Chelsea Ajunwa](https://cos.northeastern.edu/people/chelsea-ajunwa/).
+:::
+
 | Part | Focus | Status |
 |------|-------|----------------|
 | **Part 1** | Analysis of human behavioral data | Analysis complete; write-up in progress |
@@ -31,7 +35,7 @@ This project is being developed incrementally. Check back regularly for updates,
 ## Part 1: Human Behavior in Sentence Processing
 
 **Research question:**  
-*Do human readers show predictive biases based on gendered expectations in role nouns (e.g., “the next president... she”)?*
+*Do human readers show predictive biases based on gendered expectations in role nouns (e.g., "the next president... she")?*
 
 **Methods and tools:**  
 - Data cleaning and pre-processing in R  
