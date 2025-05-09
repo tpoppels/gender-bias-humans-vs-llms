@@ -1,0 +1,84 @@
+---
+title: "Gender Bias in Word-Level Predictions: Human Behavior vs. Large Language Models"
+format: html
+toc: true
+number-sections: false
+page-layout: full
+---
+
+## Overview
+
+This project investigates how both humans and large language models (LLMs) interpret gendered pronouns in political contexts—an area where subtle biases can shape comprehension and decision-making.
+
+It builds on behavioral data I collected during my PhD, extending the analysis to explore whether LLMs exhibit the same predictive biases as human readers, and whether those expectations can be modified through targeted fine-tuning.
+
+The goal is to demonstrate not only key findings about language and bias, but also the analytical, modeling, and communication skills that data scientists use to extract meaningful insights from complex datasets.
+
+The project is divided into three parts, each answering a distinct research question and demonstrating different technical tools and methodologies. Interactive dashboards accompany each part to make the results accessible for non-technical audiences.
+
+| Part | Focus | Status |
+|------|-------|----------------|
+| **Part 1** | Analysis of human behavioral data | Analysis complete; write-up in progress |
+| **Part 2** | LLM surprisal analysis on same stimuli | Design finalized; implementation next |
+| **Part 3** | Low-shot fine-tuning of LLMs | Exploring methods and model scope |
+
+::: {.callout-note}
+This project is being developed incrementally. Check back regularly for updates, or follow along on [GitHub](https://github.com/tpoppels/gender-bias-humans-vs-llms) for real-time progress.
+:::
+
+---
+
+## Part 1: Human Behavior in Sentence Processing
+
+**Research question:**  
+*Do human readers show predictive biases based on gendered expectations in role nouns (e.g., “the next president... she”)?*
+
+**Methods and tools:**  
+- Data cleaning and pre-processing in R  
+- Mixed-effects modeling with `brms`  
+- Data visualization with `ggplot2`  
+- Interactive Shiny app for exploring response times
+
+**Links:**  
+- Full report **(Stay tuned)**  
+- Shiny app **(Stay tuned)**
+
+---
+
+## Part 2: How Do LLMs Compare? *(Planned)*
+
+**Research question:**  
+*Do LLMs like GPT-4 or LLaMA exhibit human-like gender biases when processing the same sentence structures?*
+
+**Planned methods and tools:**  
+- Prompting and probing HuggingFace models  
+- Surprisal calculation and token-level analysis  
+- Streamlit dashboard for exploring model outputs  
+
+**Links:**  
+- Full report **(Coming soon)**  
+- Streamlit app **(Coming soon)**  
+
+
+---
+
+## Part 3: Fine-Tuning for Bias Mitigation *(Coming soon)*
+
+**Research question:**  
+*Can targeted fine-tuning reduce bias in LLM behavior while preserving linguistic competence?*
+
+**Planned methods and tools:**  
+- Data curation and minimal exposure training  
+- Fine-tuning open-source LLMs  
+- Re-running behavioral tests on fine-tuned models
+
+**Links:**  
+- Full report **(Coming soon)**  
+- Streamlit app **(Coming soon)**
+
+---
+
+## Project Repository
+
+All code, data, and reports are publicly available in
+[this GitHub repository](https://github.com/tpoppels/gender-bias-humans-vs-llms).
