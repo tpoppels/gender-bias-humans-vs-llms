@@ -43,9 +43,6 @@ lines_by_pattern <- function(pattern, raw_data_lines) {
   # Extract lines containing the pattern
   matching_lines <- raw_data_lines[str_detect(raw_data_lines, pattern)]
   
-  # Debug: print number of matching lines
-  cat(sprintf("\nPattern '%s' matched %d lines\n", pattern, length(matching_lines)))
-  
   if (length(matching_lines) == 0) {
     warning(sprintf("No lines matched pattern: %s", pattern))
     return(NULL)
@@ -73,8 +70,6 @@ lines_by_pattern <- function(pattern, raw_data_lines) {
 pre_election_lines <- read_lines(file = here("data", "raw", "pre-election-raw-data.txt"))
 post_election_lines <- read_lines(file = here("data", "raw", "post-election-raw-data.txt"))
 
-lines_by_pattern(",event_expectation_display_order,", pre_election_lines) |>
-  skimr::skim()
 ```
 
 Now we can extract the different types of data from these lines that were recorded throughout the ibex experiment, starting with the completion code that was recorded for each participant in order for them to claim their compensation from Mechanical Turk.
