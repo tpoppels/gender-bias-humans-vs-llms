@@ -10,3 +10,5 @@ models/
 
 # But keep the ones in the docs folder (for GitHub Pages)
 !docs/*_files/
+
+implementation.md
