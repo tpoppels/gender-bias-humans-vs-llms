@@ -13,7 +13,6 @@ execute:
   message: false
   error: true
   cache: false
-editor: visual
 ---
 
 ```{r setup}
@@ -30,23 +29,165 @@ The raw data files (gitignored for participant privacy) are Ibex results files a
 
 We will focus here on the data needed for the main research questions and hypothesis tests:
 
-1. Whether human readers were surprised to see "she" refer to the next Vice President *before the 2020 election*
-2. Whether those expectations were reversed *after the 2020 election*, which saw Kamala Harris become the first female Vice President in US history
+1.  Whether human readers were surprised to see "she" refer to the next Vice President *before the 2020 election*
+2.  Whether those expectations were reversed *after the 2020 election*, which saw Kamala Harris become the first female Vice President in US history
 
 ## Reading raw data
+
+First step is to read the raw data files line by line.
 
 ```{r read-raw-data}
 #| label: read-raw-data
 
 lines_by_pattern <- function(pattern, raw_data_lines) {
-    matching_lines <- raw_data_lines[str_detect(raw_data_lines, pattern)]
-    df <- paste(matching_lines, collapse = "\n") |> read_csv(col_names = FALSE)
-    return(df)
+  # Extract lines containing the pattern
+  matching_lines <- raw_data_lines[str_detect(raw_data_lines, pattern)]
+  
+  # Debug: print number of matching lines
+  cat(sprintf("\nPattern '%s' matched %d lines\n", pattern, length(matching_lines)))
+  
+  if (length(matching_lines) == 0) {
+    warning(sprintf("No lines matched pattern: %s", pattern))
+    return(NULL)
+  }
+
+  # Read the matching lines into a dataframe, parse submission time,
+  # and anonymize participant IDs
+  tryCatch({
+    paste(matching_lines, collapse = "\n") |>
+      read_csv(col_names = FALSE, show_col_types = FALSE) |>
+      rename(md5 = X2) |>
+      mutate(submission_time = as.POSIXct(X1, origin = "1970-01-01", tz = "UTC")) |>
+      arrange(submission_time, md5) |>
+      mutate(n_digits = ceiling(log10(n_distinct(paste(submission_time, md5))))) |>
+      group_by(submission_time, md5) |>
+      mutate(sid = sprintf("Sub%0*d", n_digits, cur_group_id())) |>
+      ungroup() |>
+      select(-X1, -n_digits, -md5)
+  }, error = function(e) {
+    warning(sprintf("Error processing pattern '%s': %s", pattern, e$message))
+    return(NULL)
+  })
 }
 
 pre_election_lines <- read_lines(file = here("data", "raw", "pre-election-raw-data.txt"))
 post_election_lines <- read_lines(file = here("data", "raw", "post-election-raw-data.txt"))
 
+lines_by_pattern(",event_expectation_display_order,", pre_election_lines) |>
+  skimr::skim()
+```
+
+Now we can extract the different types of data from these lines that were recorded throughout the ibex experiment, starting with the completion code that was recorded for each participant in order for them to claim their compensation from Mechanical Turk.
+
+We can then glue them together incrementally to create a `pre_election_df` dataframe that contains all the data we want to analyze later on.
+
+```{r extract-code}
+#| label: extract-data
+lines_by_pattern(",code,", pre_election_lines) |>
+  rename(submission_code = X8) |>
+  select(-starts_with("X")) ->
+  pre_election_df
+
+glimpse(pre_election_df)
 
 ```
 
+Next we grab the condition participants were assigned to at the start of the experiment:
+
+```{r extract-condition}
+#| label: extract-condition
+
+lines_by_pattern(",condition,", pre_election_lines) |>
+  rename(condition = X8) |>
+  select(-starts_with("X")) |>
+  right_join(pre_election_df) ->
+  pre_election_df
+
+glimpse(pre_election_df)
+
+```
+
+Next up: counterbalancing factor that determined whether the democratic candidate or the republican candidate was mentioned first in the event expectations task.
+
+```{r extract-event-expectation-display-order}
+#| label: extract-event-expectation-display-order
+
+lines_by_pattern(",event_expectation_display_order,", pre_election_lines) |>
+  rename(event_expectation_display_order = X8) |>
+  select(-starts_with("X")) |>
+  right_join(pre_election_df) ->
+  pre_election_df
+
+glimpse(pre_election_df)
+
+```
+
+
+Another counterbalancing factor that determined whether the event expectation task asked about the president or the vice president.
+
+```{r extract-event-expectation-candidate-mention}
+#| label: extract-event-expectation-candidate-mention
+
+lines_by_pattern(",event_expectation_vice,", pre_election_lines) |>
+  rename(event_expectation_asked_about_vp = X8) |>
+  select(-starts_with("X")) |>
+  right_join(pre_election_df) ->
+  pre_election_df
+
+glimpse(pre_election_df)
+
+```
+
+Parsing demographic data (self-reported):
+
+```{r extract-demographics}
+#| label: extract-demographics
+
+# Define the demographic variables to extract
+demographic_vars <- list(
+  list(pattern = ",age,", col = "age"),
+  list(pattern = ",Please select your gender.,", col = "gender"),
+  list(pattern = ",state,", col = "state"),
+  list(pattern = "education you have attained:", col = "education"),
+  list(pattern = "political affiliation?", col = "political_affiliation"),
+  list(pattern = "citizen of the United States?", col = "citizen"),
+  list(pattern = "native speaker of English?", col = "native_speaker"),
+  list(pattern = "reside in the United States?", col = "reside_in_the_united_states"),
+  list(pattern = ",news,", col = "news_consumption")
+)
+
+# Helper function to extract and join a single demographic variable
+extract_demographic <- function(pattern, col_name, data_lines, target_df) {
+  # Print debugging info
+  cat(sprintf("\nExtracting %s with pattern: %s\n", col_name, pattern))
+  
+  result <- lines_by_pattern(pattern, data_lines)
+  
+  if (is.null(result)) {
+    warning(sprintf("Skipping %s - no data found", col_name))
+    return(target_df)
+  }
+  
+  result <- result |>
+    rename(!!col_name := X9) |>
+    select(-starts_with("X")) |>
+    right_join(target_df)
+  
+  # Print row counts
+  cat(sprintf("Rows in result: %d\n", nrow(result)))
+  
+  return(result)
+}
+
+# Extract all demographic variables
+pre_election_df <- reduce(
+  demographic_vars,
+  function(df, var) {
+    extract_demographic(var$pattern, var$col, pre_election_lines, df)
+  },
+  .init = pre_election_df
+)
+
+# Check the final structure
+glimpse(pre_election_df)
+```
