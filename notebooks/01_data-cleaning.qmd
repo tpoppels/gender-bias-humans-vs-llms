@@ -32,7 +32,16 @@ We will focus here on the data needed for the main research questions and hypoth
 1.  Whether human readers were surprised to see "she" refer to the next Vice President *before the 2020 election*
 2.  Whether those expectations were reversed *after the 2020 election*, which saw Kamala Harris become the first female Vice President in US history
 
-## Reading raw data
+Here's a list of everything we collected, although we'll only be analyzing a subset for the purpose of this project:
+
+-   A "Maze" task in which participants read sentences word-by-word, choosing between the correct word and a foil at each step. We recorded the response latency associated with each word.
+-   \[SKIPPED HERE\]Counterbalancing factors: task order, pronouns used across sentences, etc.
+-   \[SKIPPED HERE\] An event expectation task in which participants assigned probabilities to the main election candidates winning the presidency.
+-   \[SKIPPED HERE\] A cloze completion task in which participants completed sentences that mentioned the future vice president.
+-   \[SKIPPED HERE\] A recall task to double-check that participants were paying attention to the pronouns in the comprehension tasks.
+-   \[SKIPPED HERE\] Self-paced reading task in which participants read sentences word-by-word while we recorded the response latency associated with each word.
+
+# Reading raw data
 
 First step is to read the raw data files line by line.
 
@@ -72,68 +81,50 @@ post_election_lines <- read_lines(file = here("data", "raw", "post-election-raw-
 
 ```
 
-Now we can extract the different types of data from these lines that were recorded throughout the ibex experiment, starting with the completion code that was recorded for each participant in order for them to claim their compensation from Mechanical Turk.
+Now we can extract the different types of data from these lines that were recorded throughout the ibex experiment, starting with the Maze task data (our main dependent variable) before turning to demographic data.
 
-We can then glue them together incrementally to create a `pre_election_df` dataframe that contains all the data we want to analyze later on.
+# Extracting Maze task data
 
-```{r extract-code}
-#| label: extract-data
-lines_by_pattern(",code,", pre_election_lines) |>
-  rename(submission_code = X8) |>
-  select(-starts_with("X")) ->
+Our hypothesis tests will focus on the first pronoun in the sentence, so we'll add a column to the dataframe that indicates whether the word is the first pronoun in the sentence. We do want to retain the other words as well for plotting purposes, though.
+```{r extract-maze-data}
+#| label: extract-maze-data
+pronouns = c("he", "she", "they",
+             "him", "her", "them",
+             "his", "her", "their")
+pronouns_regex = paste0("\\b(", paste(pronouns, collapse = "|"), ")\\b")
+
+lines_by_pattern("0,maze,", pre_election_lines) |>
+  rename(word_no = X8,
+         word = X9,
+         distractor = X10,
+         response_time = X13,
+         maze_sens = X14) |>
+  group_by(sid) |>
+  mutate(is_pronoun = word %in% pronouns,
+         is_first_pronoun = is_pronoun & word_no == min(word_no[is_pronoun]),
+         word_no_relative_to_first_pronoun = word_no - min(word_no[is_pronoun])) |>
+  ungroup() |>
+  mutate(word = str_replace_all(word, "%2C", ","),
+         distractor = str_replace_all(distractor, "%2C", ","),
+         maze_sens = str_replace_all(maze_sens, "%2C", ",")) |>
+  separate(maze_sens,
+           into = c("context_sentence", "target_sentence"),
+           sep = "\\.\\s",
+           extra = "drop") |>
+  mutate(
+    context_sentence = paste0(context_sentence, "."),
+    target_sentence = paste0(target_sentence, "."),
+    target_sentence_frame = str_replace_all(target_sentence,
+                                            pronouns_regex,
+                                            "____")) |>
+  select(-starts_with("X"), -is_pronoun) ->
   pre_election_df
-
-glimpse(pre_election_df)
 
 ```
 
-Next we grab the condition participants were assigned to at the start of the experiment:
+# Extracting demographic data
 
-```{r extract-condition}
-#| label: extract-condition
-
-lines_by_pattern(",condition,", pre_election_lines) |>
-  rename(condition = X8) |>
-  select(-starts_with("X")) |>
-  right_join(pre_election_df) ->
-  pre_election_df
-
-glimpse(pre_election_df)
-
-```
-
-Next up: counterbalancing factor that determined whether the democratic candidate or the republican candidate was mentioned first in the event expectations task.
-
-```{r extract-event-expectation-display-order}
-#| label: extract-event-expectation-display-order
-
-lines_by_pattern(",event_expectation_display_order,", pre_election_lines) |>
-  rename(event_expectation_display_order = X8) |>
-  select(-starts_with("X")) |>
-  right_join(pre_election_df) ->
-  pre_election_df
-
-glimpse(pre_election_df)
-
-```
-
-
-Another counterbalancing factor that determined whether the event expectation task asked about the president or the vice president.
-
-```{r extract-event-expectation-candidate-mention}
-#| label: extract-event-expectation-candidate-mention
-
-lines_by_pattern(",event_expectation_vice,", pre_election_lines) |>
-  rename(event_expectation_asked_about_vp = X8) |>
-  select(-starts_with("X")) |>
-  right_join(pre_election_df) ->
-  pre_election_df
-
-glimpse(pre_election_df)
-
-```
-
-Parsing demographic data (self-reported):
+We'll use the demographic data later in the Shiny app to explore the hypotheses across different demographic groups and subsets. The main hypothesis tests will average over all of these factors since we have no theoretical reason to suspect any differences.
 
 ```{r extract-demographics}
 #| label: extract-demographics
@@ -148,13 +139,18 @@ demographic_vars <- list(
   list(pattern = "citizen of the United States?", col = "citizen"),
   list(pattern = "native speaker of English?", col = "native_speaker"),
   list(pattern = "reside in the United States?", col = "reside_in_the_united_states"),
-  list(pattern = ",news,", col = "news_consumption")
+  list(pattern = ",news,", col = "news_consumption"),
+  list(pattern = "<i>prefer</i>", col = "election_outcome_preference")
 )
+
+for (var in demographic_vars) {
+  cat("\nChecking pattern:", var$pattern, "\n")
+  result <- lines_by_pattern(var$pattern, pre_election_lines)
+  cat("Result:", nrow(result), "rows\n")
+}
 
 # Helper function to extract and join a single demographic variable
 extract_demographic <- function(pattern, col_name, data_lines, target_df) {
-  # Print debugging info
-  cat(sprintf("\nExtracting %s with pattern: %s\n", col_name, pattern))
   
   result <- lines_by_pattern(pattern, data_lines)
   
@@ -163,13 +159,11 @@ extract_demographic <- function(pattern, col_name, data_lines, target_df) {
     return(target_df)
   }
   
-  result <- result |>
+  result |>
     rename(!!col_name := X9) |>
-    select(-starts_with("X")) |>
-    right_join(target_df)
-  
-  # Print row counts
-  cat(sprintf("Rows in result: %d\n", nrow(result)))
+    select(-starts_with("X"), -submission_time) |>
+    right_join(target_df, by = c("sid")) ->
+    result
   
   return(result)
 }
@@ -186,3 +180,4 @@ pre_election_df <- reduce(
 # Check the final structure
 glimpse(pre_election_df)
 ```
+
