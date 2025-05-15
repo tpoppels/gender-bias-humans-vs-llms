@@ -76,9 +76,6 @@ lines_by_pattern <- function(pattern, raw_data_lines) {
   })
 }
 
-pre_election_lines <- read_lines(file = here("data", "raw", "pre-election-raw-data.txt"))
-post_election_lines <- read_lines(file = here("data", "raw", "post-election-raw-data.txt"))
-
 ```
 
 Now we can extract the different types of data from these lines that were recorded throughout the ibex experiment, starting with the Maze task data (our main dependent variable) before turning to demographic data.
@@ -86,40 +83,47 @@ Now we can extract the different types of data from these lines that were record
 # Extracting Maze task data
 
 Our hypothesis tests will focus on the first pronoun in the sentence, so we'll add a column to the dataframe that indicates whether the word is the first pronoun in the sentence. We do want to retain the other words as well for plotting purposes, though.
+
 ```{r extract-maze-data}
 #| label: extract-maze-data
-pronouns = c("he", "she", "they",
-             "him", "her", "them",
-             "his", "her", "their")
-pronouns_regex = paste0("\\b(", paste(pronouns, collapse = "|"), ")\\b")
 
-lines_by_pattern("0,maze,", pre_election_lines) |>
-  rename(word_no = X8,
-         word = X9,
-         distractor = X10,
-         response_time = X13,
-         maze_sens = X14) |>
-  group_by(sid) |>
-  mutate(is_pronoun = word %in% pronouns,
-         is_first_pronoun = is_pronoun & word_no == min(word_no[is_pronoun]),
-         word_no_relative_to_first_pronoun = word_no - min(word_no[is_pronoun])) |>
-  ungroup() |>
-  mutate(word = str_replace_all(word, "%2C", ","),
-         distractor = str_replace_all(distractor, "%2C", ","),
-         maze_sens = str_replace_all(maze_sens, "%2C", ",")) |>
-  separate(maze_sens,
-           into = c("context_sentence", "target_sentence"),
-           sep = "\\.\\s",
-           extra = "drop") |>
-  mutate(
-    context_sentence = paste0(context_sentence, "."),
-    target_sentence = paste0(target_sentence, "."),
-    target_sentence_frame = str_replace_all(target_sentence,
+process_maze_data <- function(raw_lines, data_round) {
+  pronouns = c("he", "she", "they",
+               "him", "her", "them",
+               "his", "her", "their")
+  pronouns_regex = paste0("\\b(", paste(pronouns, collapse = "|"), ")\\b")
+
+  lines_by_pattern("0,maze,", raw_lines) |>
+    rename(word_no = X8,
+           word = X9,
+           distractor = X10,
+           response_time = X13,
+           maze_sens = X14) |>
+    group_by(sid) |>
+    mutate(is_pronoun = word %in% pronouns,
+           is_first_pronoun = is_pronoun & word_no == min(word_no[is_pronoun]),
+           word_no_relative_to_first_pronoun = word_no - min(word_no[is_pronoun])) |>
+    ungroup() |>
+    mutate(word = str_replace_all(word, "%2C", ","),
+           distractor = str_replace_all(distractor, "%2C", ","),
+           maze_sens = str_replace_all(maze_sens, "%2C", ",")) |>
+    separate(maze_sens,
+             into = c("context_sentence", "target_sentence"),
+             sep = "\\.\\s",
+             extra = "drop") |>
+    mutate(
+      context_sentence = paste0(context_sentence, "."),
+      target_sentence = paste0(target_sentence, "."),
+      target_sentence_frame = str_replace_all(target_sentence,
                                             pronouns_regex,
-                                            "____")) |>
-  select(-starts_with("X"), -is_pronoun) ->
-  pre_election_df
+                                            "____"),
+      data_round = data_round  # Add identifier for pre/post election
+    ) |>
+    select(-starts_with("X"), -is_pronoun) ->
+    maze_df
 
+  return(maze_df)
+}
 ```
 
 # Extracting demographic data
@@ -129,55 +133,76 @@ We'll use the demographic data later in the Shiny app to explore the hypotheses 
 ```{r extract-demographics}
 #| label: extract-demographics
 
-# Define the demographic variables to extract
-demographic_vars <- list(
-  list(pattern = ",age,", col = "age"),
-  list(pattern = ",Please select your gender.,", col = "gender"),
-  list(pattern = ",state,", col = "state"),
-  list(pattern = "education you have attained:", col = "education"),
-  list(pattern = "political affiliation?", col = "political_affiliation"),
-  list(pattern = "citizen of the United States?", col = "citizen"),
-  list(pattern = "native speaker of English?", col = "native_speaker"),
-  list(pattern = "reside in the United States?", col = "reside_in_the_united_states"),
-  list(pattern = ",news,", col = "news_consumption"),
-  list(pattern = "<i>prefer</i>", col = "election_outcome_preference")
-)
+process_demographic_data <- function(raw_lines, target_df) {
+  demographic_vars <- list(
+    list(pattern = ",age,", col = "age"),
+    list(pattern = ",Please select your gender.,", col = "gender"),
+    list(pattern = ",state,", col = "state"),
+    list(pattern = "education you have attained:", col = "education"),
+    list(pattern = "political affiliation?", col = "political_affiliation"),
+    list(pattern = "citizen of the United States?", col = "citizen"),
+    list(pattern = "native speaker of English?", col = "native_speaker"),
+    list(pattern = "reside in the United States?", col = "reside_in_the_united_states"),
+    list(pattern = ",news,", col = "news_consumption"),
+    list(pattern = "<i>prefer</i>", col = "election_outcome_preference")
+  )
 
-for (var in demographic_vars) {
-  cat("\nChecking pattern:", var$pattern, "\n")
-  result <- lines_by_pattern(var$pattern, pre_election_lines)
-  cat("Result:", nrow(result), "rows\n")
-}
-
-# Helper function to extract and join a single demographic variable
-extract_demographic <- function(pattern, col_name, data_lines, target_df) {
-  
-  result <- lines_by_pattern(pattern, data_lines)
-  
-  if (is.null(result)) {
-    warning(sprintf("Skipping %s - no data found", col_name))
-    return(target_df)
+  # Helper function to extract and join a single demographic variable
+  extract_demographic <- function(pattern, col_name, data_lines, target_df) {
+    result <- lines_by_pattern(pattern, data_lines)
+    
+    if (is.null(result)) {
+      warning(sprintf("Skipping %s - no data found", col_name))
+      return(target_df)
+    }
+    
+    result |>
+      rename(!!col_name := X9) |>
+      select(-starts_with("X"), -submission_time) |>
+      right_join(target_df, by = "sid") ->
+      result
+    
+    return(result)
   }
-  
-  result |>
-    rename(!!col_name := X9) |>
-    select(-starts_with("X"), -submission_time) |>
-    right_join(target_df, by = c("sid")) ->
-    result
-  
-  return(result)
+
+  # Process all demographic variables
+  target_df <- reduce(
+    demographic_vars,
+    function(df, var) {
+      extract_demographic(var$pattern, var$col, raw_lines, df)
+    },
+    .init = target_df
+  )
+
+  return(target_df)
 }
-
-# Extract all demographic variables
-pre_election_df <- reduce(
-  demographic_vars,
-  function(df, var) {
-    extract_demographic(var$pattern, var$col, pre_election_lines, df)
-  },
-  .init = pre_election_df
-)
-
-# Check the final structure
-glimpse(pre_election_df)
 ```
 
+```{r process-data}
+#| label: process-data
+
+# Read raw data
+pre_election_lines <- read_lines(file = here("data", "raw", "pre-election-raw-data.txt"))
+post_election_lines <- read_lines(file = here("data", "raw", "post-election-raw-data.txt"))
+
+# Process pre-election data
+pre_election_maze <- process_maze_data(pre_election_lines, "pre-election")
+pre_election_df <- process_demographic_data(pre_election_lines, pre_election_maze)
+
+# Process post-election data
+post_election_maze <- process_maze_data(post_election_lines, "post-election")
+post_election_df <- process_demographic_data(post_election_lines, post_election_maze)
+
+# Combine the datasets and renumber participants
+bind_rows(pre_election_df, post_election_df) |>
+  arrange(submission_time) |>
+  group_by(sid,submission_time) |>
+  mutate(participant_id = sprintf("Participant %04d", cur_group_id())) |>
+  ungroup() |>
+  select(-sid) ->
+  combined_df
+
+glimpse(combined_df)
+skimr::skim(combined_df)
+
+```
