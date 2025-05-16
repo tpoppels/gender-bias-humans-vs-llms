@@ -200,14 +200,16 @@ bind_rows(pre_election_df, post_election_df) |>
   select(-md5) ->
   combined_df
 
-glimpse(combined_df)
-skimr::skim(combined_df)
 
 ```
 
 # Apply exclusion criteria
 
-Before saving the processed and anonymized data, we want to apply some exclusion criteria. Specifically, we want to exclude participants who: - took more than 10 seconds to read any word in the Maze task (may have tabbed out of the experiment) - took less than 180 milliseconds to read any word in the Maze task (may not have been reading properly)
+Before saving the processed and anonymized data, we want to apply some exclusion criteria. Specifically, we want to exclude participants who:
+
+- took more than 10 seconds to read any word in the Maze task (may have tabbed out of the experiment)
+- took less than 180 milliseconds to read any word in the Maze task (may not have been reading properly)
+- self-reported being non-native speakers of English
 
 These are standard exclusion criteria for psycholinguistic response time measures.
 
@@ -219,13 +221,16 @@ combined_df |>
   mutate(max_response_time = max(response_time),
          min_response_time = min(response_time)) |>
   ungroup() |>
-  filter(max_response_time < 10000, min_response_time > 180) ->
+  filter(max_response_time < 10000, min_response_time > 180,
+         native_speaker == "yes") ->
   combined_df
 
 glimpse(combined_df)
 skimr::skim(combined_df)
 
 ```
+
+After applying the exclusion criteria, we're left with `r length(unique(combined_df$participant_id))`  participants.
 
 # Save data
 
