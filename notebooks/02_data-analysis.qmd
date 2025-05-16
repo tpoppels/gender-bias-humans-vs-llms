@@ -1,0 +1,73 @@
+---
+title: "Data Analysis: Visualizations and Hypothesis Tests"
+author: "Till Poppels"
+format: 
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 2
+    number-sections: true
+    fig-format: "svg"
+    fig-dpi: 300
+execute:
+  echo: true
+  warning: false
+  message: false
+  error: true
+  cache: false
+---
+
+```{r setup}
+#| label: setup
+#| include: false
+
+library(tidyverse)
+library(here)
+library(ggplot2)
+```
+
+# Load data
+
+```{r load-data}
+#| label: load-data
+
+clean_data <- read_rds(here("data", "processed", "clean-data.rds"))
+
+```
+
+# Replicate RT by rel_word_no plot (average sentence)
+
+```{r replicate-rt-by-rel-word-no-plot}
+#| label: replicate-rt-by-rel-word-no-plot
+#| fig-width: 6
+#| fig-height: 3
+#| dev: "svg"
+#| fig-path: "figures/"  # This will save to a figures directory
+
+clean_data |>
+  filter(word_no_relative_to_first_pronoun %in% c(-5:5)) |>
+  filter(data_round == "pre-election") |>
+  group_by(participant_id) |>
+  mutate(pronoun_condition = case_when(
+    word[is_first_pronoun] %in% c("he", "him", "his") ~ "masculine",
+    word[is_first_pronoun] %in% c("she", "her") ~ "feminine",
+    word[is_first_pronoun] %in% c("they", "them", "their") ~ "singular they",
+    TRUE ~ NA_character_
+  )) |>
+  group_by(pronoun_condition, word_no_relative_to_first_pronoun) |>
+  summarize(mean_rt = mean(response_time),
+            n = length(response_time),
+            se = sd(response_time) / sqrt(n)) |>
+  ggplot(aes(x = word_no_relative_to_first_pronoun, y = mean_rt, color = pronoun_condition)) +
+  geom_errorbar(aes(ymin = mean_rt - se, ymax = mean_rt + se), width = 0.2, position = position_dodge(width = 0.2)) +
+  geom_line(position = position_dodge(width = 0.2)) +
+  geom_point(position = position_dodge(width = 0.2)) +
+  scale_y_continuous(name = "Response Time (ms)") +
+  scale_x_continuous(name = element_blank(),
+                     breaks = c(-5:5)) +
+  scale_color_manual(name = "Pronoun type",
+                     values = c("masculine" = "red",
+                                "feminine" = "blue",
+                                "singular they" = "grey")) +
+  theme_minimal()
+```
