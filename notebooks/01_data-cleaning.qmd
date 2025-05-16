@@ -57,19 +57,13 @@ lines_by_pattern <- function(pattern, raw_data_lines) {
     return(NULL)
   }
 
-  # Read the matching lines into a dataframe, parse submission time,
-  # and anonymize participant IDs
+  # Read the matching lines into a dataframe and parse submission time
   tryCatch({
     paste(matching_lines, collapse = "\n") |>
       read_csv(col_names = FALSE, show_col_types = FALSE) |>
       rename(md5 = X2) |>
       mutate(submission_time = as.POSIXct(X1, origin = "1970-01-01", tz = "UTC")) |>
-      arrange(submission_time, md5) |>
-      mutate(n_digits = ceiling(log10(n_distinct(paste(submission_time, md5))))) |>
-      group_by(submission_time, md5) |>
-      mutate(sid = sprintf("Sub%0*d", n_digits, cur_group_id())) |>
-      ungroup() |>
-      select(-X1, -n_digits, -md5)
+      select(-X1)
   }, error = function(e) {
     warning(sprintf("Error processing pattern '%s': %s", pattern, e$message))
     return(NULL)
@@ -99,7 +93,7 @@ process_maze_data <- function(raw_lines, data_round) {
            distractor = X10,
            response_time = X13,
            maze_sens = X14) |>
-    group_by(sid) |>
+    group_by(submission_time, md5) |>
     mutate(is_pronoun = word %in% pronouns,
            is_first_pronoun = is_pronoun & word_no == min(word_no[is_pronoun]),
            word_no_relative_to_first_pronoun = word_no - min(word_no[is_pronoun])) |>
@@ -158,8 +152,8 @@ process_demographic_data <- function(raw_lines, target_df) {
     
     result |>
       rename(!!col_name := X9) |>
-      select(-starts_with("X"), -submission_time) |>
-      right_join(target_df, by = "sid") ->
+      select(-starts_with("X")) |>
+      right_join(target_df, by = c("submission_time", "md5")) ->
       result
     
     return(result)
@@ -177,6 +171,10 @@ process_demographic_data <- function(raw_lines, target_df) {
   return(target_df)
 }
 ```
+
+# Process data
+
+Now that we've defined functions for reading both demographic data and Maze task data (the main dependent variable), we can process the data.
 
 ```{r process-data}
 #| label: process-data
@@ -196,13 +194,45 @@ post_election_df <- process_demographic_data(post_election_lines, post_election_
 # Combine the datasets and renumber participants
 bind_rows(pre_election_df, post_election_df) |>
   arrange(submission_time) |>
-  group_by(sid,submission_time) |>
+  group_by(md5,submission_time) |>
   mutate(participant_id = sprintf("Participant %04d", cur_group_id())) |>
   ungroup() |>
-  select(-sid) ->
+  select(-md5) ->
   combined_df
 
 glimpse(combined_df)
 skimr::skim(combined_df)
 
 ```
+
+# Apply exclusion criteria
+
+Before saving the processed and anonymized data, we want to apply some exclusion criteria. Specifically, we want to exclude participants who: - took more than 10 seconds to read any word in the Maze task (may have tabbed out of the experiment) - took less than 180 milliseconds to read any word in the Maze task (may not have been reading properly)
+
+These are standard exclusion criteria for psycholinguistic response time measures.
+
+```{r apply-exclusion-criteria}
+#| label: apply-exclusion-criteria
+
+combined_df |>
+  group_by(participant_id) |>
+  mutate(max_response_time = max(response_time),
+         min_response_time = min(response_time)) |>
+  ungroup() |>
+  filter(max_response_time < 10000, min_response_time > 180) ->
+  combined_df
+
+glimpse(combined_df)
+skimr::skim(combined_df)
+
+```
+
+# Save data
+
+```{r save-data}
+#| label: save-data
+
+write_rds(combined_df, here("data", "processed", "clean-data.rds"))
+
+```
+
