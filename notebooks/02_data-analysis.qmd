@@ -26,6 +26,16 @@ library(here)
 library(ggplot2)
 ```
 
+# Overview
+
+In this notebook, we will analyze the data from the behavioral experiment (Part 1). We will start by visualizing the response times (RTs) and perform the formal hypothesis tests using the `brms` package.
+
+Here's how we'll proceed:
+1. Load the data
+2. Visualize RTs around the first pronoun, comparing pre- and post-election data collection rounds
+3. Fit a `brms` model and define hypothesis tests
+
+
 # Load data
 
 ```{r load-data}
@@ -35,7 +45,7 @@ clean_data <- read_rds(here("data", "processed", "clean-data.rds"))
 
 ```
 
-# Replicate RT by rel_word_no plot (average sentence)
+# Visualize RTs around the first pronoun, comparing pre- and post-election data collection rounds
 
 ```{r replicate-rt-by-rel-word-no-plot}
 #| label: replicate-rt-by-rel-word-no-plot
@@ -46,28 +56,43 @@ clean_data <- read_rds(here("data", "processed", "clean-data.rds"))
 
 clean_data |>
   filter(word_no_relative_to_first_pronoun %in% c(-5:5)) |>
-  filter(data_round == "pre-election") |>
-  group_by(participant_id) |>
+  mutate(data_round = factor(data_round, levels = c("pre-election", "post-election"))) |>
+  group_by(participant_id, data_round) |>
   mutate(pronoun_condition = case_when(
     word[is_first_pronoun] %in% c("he", "him", "his") ~ "masculine",
     word[is_first_pronoun] %in% c("she", "her") ~ "feminine",
     word[is_first_pronoun] %in% c("they", "them", "their") ~ "singular they",
     TRUE ~ NA_character_
   )) |>
-  group_by(pronoun_condition, word_no_relative_to_first_pronoun) |>
+  group_by(pronoun_condition, word_no_relative_to_first_pronoun, data_round) |>
   summarize(mean_rt = mean(response_time),
             n = length(response_time),
             se = sd(response_time) / sqrt(n)) |>
   ggplot(aes(x = word_no_relative_to_first_pronoun, y = mean_rt, color = pronoun_condition)) +
+  facet_wrap(~data_round, ncol = 1) +
   geom_errorbar(aes(ymin = mean_rt - se, ymax = mean_rt + se), width = 0.2, position = position_dodge(width = 0.2)) +
   geom_line(position = position_dodge(width = 0.2)) +
   geom_point(position = position_dodge(width = 0.2)) +
   scale_y_continuous(name = "Response Time (ms)") +
-  scale_x_continuous(name = element_blank(),
+  scale_x_continuous(name = "Word number relative to first pronoun",
                      breaks = c(-5:5)) +
   scale_color_manual(name = "Pronoun type",
                      values = c("masculine" = "red",
                                 "feminine" = "blue",
                                 "singular they" = "grey")) +
-  theme_minimal()
+  theme_classic() ->
+  g
+
+ggsave(here("figures", "rt-by-pronoun-type-and-position.svg"),
+       plot = g,
+       width = 6,
+       height = 3)
 ```
+
+Before running the formal hypothesis tests, we can already see visually that:
+1. Pre-election: feminine pronouns were processed more slowly than masculine pronouns
+2. Post-election: the slow-down disappeared
+
+# Fit a `brms` model and define hypothesis tests
+
+In order to verify the visual findings, we will fit a `brms` model and define hypothesis tests. Since each participant only contributed a single data point, we do not need by-participant random effects, but we will include random effects for sentences (there were 12 sentences in total).
