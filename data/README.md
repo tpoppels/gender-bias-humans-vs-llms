@@ -14,9 +14,10 @@ This directory will contain both raw and processed data for the gender bias anal
 ## Data Pipeline
 
 1. Raw data is collected and placed in `raw/`
-2. The cleaning pipeline in `notebooks/01_data-cleaning.qmd` processes the data:
+2. The cleaning pipeline in `notebooks/01_data-cleaning.qmd` processes the data
 3. Processed data is saved to `processed/` for use in analysis
 
 ## Data Formats
 
 - Raw data for Part 1 consists of Ibex results file (.txt format); see https://github.com/addrummond/ibex/blob/master/docs/manual.md#basic-concepts.
+- Cleaned data is stored in .rds format
