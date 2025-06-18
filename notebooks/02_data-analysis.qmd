@@ -24,6 +24,7 @@ execute:
 library(tidyverse)
 library(here)
 library(ggplot2)
+library(brms)
 ```
 
 # Overview
@@ -96,3 +97,46 @@ Before running the formal hypothesis tests, we can already see visually that:
 # Fit a `brms` model and define hypothesis tests
 
 In order to verify the visual findings, we will fit a `brms` model and define hypothesis tests. Since each participant only contributed a single data point, we do not need by-participant random effects, but we will include random effects for sentences (there were 12 sentences in total).
+
+First, let's segment the data and visualize it descriptively. The dependent variable (on the Y axis) is pronoun RT, and our predictors (population-evel model coefficients) are whether or not the pronoun in question is feminine ("she", "her") or not ("he", "him", "his", "they", "them", "their"), and whether the data was collected before or after the election. We code the predictors such that the baseline is masculine pronouns and pre-election data, so that our hypotheses are:
+
+1. Significantly positive coefficient for `feminine_pronoun`
+2. Significantly negative coefficient for the `feminine_pronoun:post_election` interaction
+
+```{r fit-brms-model}
+#| label: fit-brms-model
+
+clean_data |>
+  filter(is_first_pronoun) |>
+  mutate(feminine_pronoun = as.numeric(word %in% c("she", "her")),
+         post_election = as.numeric(data_round == "post-election")) |>
+  group_by(target_sentence_frame) |>
+  mutate(sentence_id = paste("Sentence ", cur_group_id())) |>
+  ungroup() ->
+  data_for_model
+
+brm(response_time ~ feminine_pronoun * post_election + (feminine_pronoun * post_election | sentence_id),
+    data = data_for_model,
+    family = gaussian(),
+      chains = 4,
+      cores = 4,
+      iter = 2000,
+      warmup = 1000,
+      seed = 123) ->
+  m
+
+
+```
+
+Our hypotheses are twofold:
+1. Significantly positive coefficient for `feminine_pronoun` => would indicate that feminine pronouns were processed more slowly prior to the election
+2. Significantly negative coefficient for the `feminine_pronoun:post_election` interaction => would indicate that the slow-down was significantly mitigated after the election
+
+```{r hypothesis-tests}
+#| label: hypothesis-tests
+
+hypothesis(m, c("feminine_pronoun > 0", "feminine_pronoun:post_election < 0"))
+
+```
+
+Virtually all posterior samples are consistent with the hypotheses, hence the posterior probability of the hypotheses (given model and data) is 1.
